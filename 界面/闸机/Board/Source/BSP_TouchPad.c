@@ -1,0 +1,118 @@
+/*
+*******************************************************************************
+*    模块：BSP_TouchPad
+*    描述：板级 TouchPad 功能模块驱动
+*    作者：Huo
+*    时间：2017.12.13
+*    版本：UP-Magic-Version 1.0.0
+*******************************************************************************
+*/
+#include "BSP_TouchPad.h"
+
+/* 触摸屏上报触点信息 */
+volatile uint16_t PENX,PENY;
+volatile uint16_t PENX_PRE,PENY_PRE;
+
+/* 非精确延时函数 */
+//static void BSP_TouchPad_DelayMs(volatile uint16_t xMs)
+//{
+//	volatile uint32_t Count=24000;
+//	while(xMs--)
+//	{
+//		Count=24000;
+//		while(Count--);
+//	}
+//}
+/*
+*******************************************************************************
+*	函 数 名: BSP_TouchPad_ABS
+*	功能说明: 计算绝对值
+*	形    参: x : 有符合整数
+*	返 回 值: 正整数
+*******************************************************************************
+*/
+static int32_t BSP_TouchPad_ABS(int32_t x)
+{
+    if (x >= 0)
+    {
+        return x;
+    }
+    else
+    {
+        return -x;
+    }
+}
+
+/*
+*******************************************************************************
+*	函 数 名: BSP_TouchPad_Callback
+*	功能说明: 板级 TouchPad 上报点位功能函数
+*	形    参: 无
+*	返 回 值: 0-有效  1-无效
+*******************************************************************************
+*/
+uint8_t BSP_TouchPad_Callback(void)
+{
+    uint16_t PEN[2];
+
+    if(!BSP_GSL268x_Callback(PEN))
+    {
+        PENX_PRE = PENX;//记录上一次的触点
+        PENY_PRE = PENY;
+        PENX = PEN[0];  //X 可以在这里做坐标转换
+        PENY = PEN[1];  //Y
+#if 1
+        printf("X: %d, Y: %d \r\n",PENX,PENY);
+#endif
+        return 0;
+    }
+    else
+        return 1;
+}
+
+/*
+*******************************************************************************
+*	函 数 名: BSP_TouchPad_InRect
+*	功能说明: 判断当前坐标是否位于矩形框内
+*	形    参: _usX, _usY: 输入坐标
+*			  _usRectX,_usRectY: 矩形起点
+*			  _usRectH、_usRectW : 矩形高度和宽度
+*	返 回 值: 1 表示在范围内
+*******************************************************************************
+*/
+uint8_t BSP_TouchPad_InRect(uint16_t _usX, uint16_t _usY,
+                            uint16_t _usRectX, uint16_t _usRectY, uint16_t _usRectH, uint16_t _usRectW)
+{
+    if ((_usX > _usRectX) && (_usX < _usRectX + _usRectW)
+            && (_usY > _usRectY) && (_usY < _usRectY + _usRectH))
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+/*
+*******************************************************************************
+*	函 数 名: BSP_TouchPad_MoveValid
+*	功能说明: 判断当前坐标和上次坐标是否偏差太大
+*	形    参:  _usX1, _usY1: 坐标1
+*			  _usX2, _usY2: 坐标2
+*	返 回 值: 1 表示有效点， 0 表示飞点
+*******************************************************************************
+*/
+uint8_t BSP_TouchPad_MoveValid(uint16_t _usX1, uint16_t _usY1,
+                               uint16_t _usX2, uint16_t _usY2)
+{
+    int16_t iX, iY;
+
+    iX = BSP_TouchPad_ABS(_usX1 - _usX2);
+    iY = BSP_TouchPad_ABS(_usY1 - _usY2);
+
+    if ((iX < 25) && (iY < 25))
+        return 1;
+    else
+        return 0;
+}

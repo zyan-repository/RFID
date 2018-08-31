@@ -1,0 +1,22 @@
+SCM & MCU Software Architecture and File Organization V1.0
+
+AL :Application Layer       --> App Software
+FML:Functional Module Layer --> Board Devices
+HAL:Hardware Abstract Layer --> MCU Chip
+
+
+File Organization
+
+App     :App Source Code + 3rd Source Code
+Board   :Board Devices Driver Code
+Chip    :CMSIS(startup) + Standard Peripheral Library
+Document:Readme.txt
+EOS     :Embedded Operation System(Opt)
+Project :MDK + IAR(Opt)
+Readcode:Source Insight V3 Project (Opt)
+
+CamelCase Used.
+
+
+Huo
+2017.08.16

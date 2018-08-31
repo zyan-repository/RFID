@@ -1,0 +1,22 @@
+单片机 & 微控制器 软件架构与文件组织 V1.0
+
+应用程序层:Application Layer       对应--> 最上层应用程序，纯软件操作App Software
+功能模块层:Functional Module Layer 对应--> 板载各功能器件，屏蔽板子差异Board Devices
+硬件抽象层:Hardware Abstract Layer 对应--> 各厂家微处理器，屏蔽微处理器差异MCU Chip
+
+
+File Organization 文件组织
+
+App 文件夹    :App Source Code + 3rd Source Code
+Board文件夹   :Board Devices Driver Code
+Chip文件夹    :CMSIS(startup) + Standard Peripheral Library
+Document文件夹:Readme.txt
+EOS 文件夹    :Embedded Operating System(可选)
+Project文件夹 :MDK + IAR(可选)
+Readcode文件夹:Source Insight V3 Project源码阅读工程 (可选)
+
+CamelCase Used.使用驼峰命名法
+
+
+霍
+2017.08.16

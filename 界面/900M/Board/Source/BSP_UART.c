@@ -1,0 +1,257 @@
+/*
+***************************************************************************
+*    模块：BSP_UART
+*    描述：板级 UART 功能模块驱动
+          USART3:TX3-PB10 RX3-PB11
+*    作者：Huo
+*    时间：2018.03.05
+*    版本：V1.0.0
+***************************************************************************
+*/
+#include <stdarg.h>
+#include "BSP_UART.h"
+
+/* 内部函数声明 */
+static void BSP_UART_GPIO_Init(void);
+static void BSP_UART_USART_Init(uint32_t BaudRate);
+static void BSP_UART_NVIC_Init(void);
+static char * itoa( int value, char * string, int radix );
+
+/*
+***************************************************************************
+*	函 数 名: BSP_UART_Init
+*	功能说明: 板载 UART 初始化函数
+*	形    参: BaudRate 波特率
+*	返 回 值: 无
+***************************************************************************
+*/
+void BSP_UART_Init(uint32_t BaudRate)
+{
+    BSP_UART_USART_Init(BaudRate);
+    BSP_UART_GPIO_Init();
+    BSP_UART_NVIC_Init();
+}
+
+/*
+***************************************************************************
+*	函 数 名: BSP_UART_GPIO_Init
+*	功能说明: 板载 UART GPIO 初始化函数
+*	形    参: 无
+*	返 回 值: 无
+***************************************************************************
+*/
+static void BSP_UART_GPIO_Init(void)
+{
+    GPIO_InitTypeDef GPIO_InitStructure;
+
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB,ENABLE); //使能GPIOB时钟
+
+    //串口3对应引脚复用映射
+    GPIO_PinAFConfig(GPIOB,GPIO_PinSource10,GPIO_AF_USART3); //GPIOB10复用为USART3
+    GPIO_PinAFConfig(GPIOB,GPIO_PinSource11,GPIO_AF_USART3); //GPIOA11复用为USART3
+    //USART3端口配置
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10 | GPIO_Pin_11; //GPIOB10与GPIOB11
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;//复用功能
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;	//速度50MHz
+    GPIO_InitStructure.GPIO_OType = GPIO_OType_PP; //推挽复用输出
+    //GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP; //上拉
+    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+    GPIO_Init(GPIOB,&GPIO_InitStructure); //初始化PB10，PB11
+}
+
+/*
+***************************************************************************
+*	函 数 名: BSP_UART_USART_Init
+*	功能说明: 板载 UART USART 初始化函数
+*	形    参: BaudRate 波特率
+*	返 回 值: 无
+***************************************************************************
+*/
+static void BSP_UART_USART_Init(uint32_t BaudRate)
+{
+    USART_InitTypeDef USART_InitStructure;
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3,ENABLE);	//使能USART3时钟
+
+    //USART 初始化设置
+    USART_InitStructure.USART_BaudRate = BaudRate;	//串口波特率
+    USART_InitStructure.USART_WordLength = USART_WordLength_8b;//字长
+    USART_InitStructure.USART_StopBits = USART_StopBits_1;//停止位
+    USART_InitStructure.USART_Parity = USART_Parity_No;//无奇偶校验位
+    USART_InitStructure.USART_HardwareFlowControl = \
+            USART_HardwareFlowControl_None;//无硬件数据流控制
+    USART_InitStructure.USART_Mode = \
+                                     USART_Mode_Rx | USART_Mode_Tx;	//收发模式
+    USART_Init(USART3, &USART_InitStructure); //初始化串口3
+
+    USART_ITConfig(USART3, USART_IT_RXNE, ENABLE);//开启串口接受中断
+    USART_ITConfig(USART3, USART_IT_IDLE, ENABLE );//使能串口总线空闲中断
+
+    USART_Cmd(USART3, ENABLE);                    //使能串口3
+}
+
+/*
+***************************************************************************
+*	函 数 名: BSP_UART_NVIC_Init
+*	功能说明: 板载 UART NVIC 初始化函数
+*	形    参: 无
+*	返 回 值: 无
+***************************************************************************
+*/
+static void BSP_UART_NVIC_Init(void)
+{
+    NVIC_InitTypeDef NVIC_InitStructure;
+
+    //USART1 NVIC 配置
+    NVIC_InitStructure.NVIC_IRQChannel = USART3_IRQn;
+    /* 抢占优先级设置，优先级分组为 4 的情况下，抢占优先级可设置范围 0-15 */
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority= 13;
+    /* 子优先级设置，优先级分组为 4 的情况下，子优先级无效，取数值 0 即可 */
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;	//IRQ通道使能
+    NVIC_Init(&NVIC_InitStructure);	//根据指定的参数初始化VIC寄存器
+}
+
+/*
+***************************************************************************
+*	函 数 名: USART_printf
+*	功能说明: 格式化输出，类似于C库中的printf，但这里没有用到C库
+*	形    参: -USARTx 串口通道，这里只用到了串口3，即USART3
+*             -Data   要发送到串口的内容的指针
+*             -...    其他参数
+*	返 回 值: 无
+***************************************************************************
+*/
+void USART_printf( USART_TypeDef * USARTx, char * Data, ... )
+{
+    const char *s;
+    int d;
+    char buf[16];
+
+    va_list ap;
+    va_start(ap, Data);
+
+    while ( * Data != 0 )     // 判断是否到达字符串结束符
+    {
+        if ( * Data == 0x5c )  //'\'
+        {
+            switch ( *++Data )
+            {
+            case 'r':							          //回车符
+                USART_SendData(USARTx, 0x0d);
+                Data ++;
+                break;
+
+            case 'n':							          //换行符
+                USART_SendData(USARTx, 0x0a);
+                Data ++;
+                break;
+
+            default:
+                Data ++;
+                break;
+            }
+        }
+
+        else if ( * Data == '%')
+        {
+            switch ( *++Data )
+            {
+            case 's':										  //字符串
+                s = va_arg(ap, const char *);
+
+                for ( ; *s; s++)
+                {
+                    USART_SendData(USARTx,*s);
+                    while( USART_GetFlagStatus(USARTx, USART_FLAG_TXE) == RESET );
+                }
+
+                Data++;
+
+                break;
+
+            case 'd':
+                //十进制
+                d = va_arg(ap, int);
+
+                itoa(d, buf, 10);
+
+                for (s = buf; *s; s++)
+                {
+                    USART_SendData(USARTx,*s);
+                    while( USART_GetFlagStatus(USARTx, USART_FLAG_TXE) == RESET );
+                }
+
+                Data++;
+
+                break;
+
+            default:
+                Data++;
+
+                break;
+            }
+        }
+
+        else USART_SendData(USARTx, *Data++);
+
+        while ( USART_GetFlagStatus ( USARTx, USART_FLAG_TXE ) == RESET );
+    }
+}
+
+/*
+***************************************************************************
+*	函 数 名: itoa
+*	功能说明: 将整形数据转换成字符串
+*	形    参: -radix =10 表示10进制，其他结果为0
+*             -value 要转换的整形数
+*             -buf 转换后的字符串
+*             -radix = 10
+*	返 回 值: 无
+***************************************************************************
+*/
+static char * itoa( int value, char *string, int radix )
+{
+    int     i, d;
+    int     flag = 0;
+    char    *ptr = string;
+
+    /* This implementation only works for decimal numbers. */
+    if (radix != 10)
+    {
+        *ptr = 0;
+        return string;
+    }
+
+    if (!value)
+    {
+        *ptr++ = 0x30;
+        *ptr = 0;
+        return string;
+    }
+
+    /* if this is a negative value insert the minus sign. */
+    if (value < 0)
+    {
+        *ptr++ = '-';
+
+        /* Make the value positive. */
+        value *= -1;
+    }
+
+    for (i = 10000; i > 0; i /= 10)
+    {
+        d = value / i;
+
+        if (d || flag)
+        {
+            *ptr++ = (char)(d + 0x30);
+            value -= (d * i);
+            flag = 1;
+        }
+    }
+
+    /* Null terminate the string. */
+    *ptr = 0;
+
+    return string;
+}
